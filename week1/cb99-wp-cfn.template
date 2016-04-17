@@ -1,0 +1,139 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
+
+  "Metadata" : {
+    "Version" : "0.1.0"
+  },
+
+  "Parameters" : {
+    "WPInstanceType" : {
+      "Description" : "Enter desired instance type for WP nodes; default is t2.micro",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large" ]
+    },
+
+    "WPInstanceCount" : {
+      "Description" : "Enter desired number of WP instances for auto-scaling group (0-5); default is 1",
+      "Type" : "Number",
+      "Default" : "1",
+      "MinValue" : "0",
+      "MaxValue" : "5"
+    },
+
+    "SSHKey" : {
+      "Description" : "Enter the name of an AWS SSH keypair that will be used to access the EC2 instances",
+      "Type" : "AWS::EC2::KeyPair::KeyName",
+      "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+    },
+
+    "SSHLocation" : {
+      "Description" : "The IP address range that can be used to SSH to the EC2 instances",
+      "Type" : "String",
+      "MinLength" : "9",
+      "MaxLength" : "18",
+      "Default" : "0.0.0.0/0",
+      "AllowedPattern" : "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription" : "must be a valid IP CIDR range of the form x.x.x.x/x."
+    },
+
+    "DBAdminUser" : {
+      "Description" : "Enter database admin user account; default is 'wpdbadm'",
+      "Type" : "String",
+      "Default" : "wpmysqldbadm",
+      "MinLength" : "1",
+      "MaxLength" : "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "DBAdminPassword" : {
+      "Description" : "Enter database admin password",
+      "Type" : "String",
+      "NoEcho" : "true",
+      "MinLength" : "8",
+      "MaxLength" : "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+
+    "DBInstanceType" : {
+      "Description" : "Enter desired instance type for DB nodes; default is 'db.t2.micro'",
+      "Type" : "String",
+      "Default" : "db.t2.micro",
+      "AllowedValues" : [ "db.t2.micro", "db.t2.small", "db.t2.medium", "db.t2.large" ],
+      "ConstraintDescription" : "must select a valid database instance type."
+    },
+
+    "DBName" : {
+      "Default" : "wordpressdb",
+      "Description" : "The WordPress database name",
+      "Type" : "String",
+      "MinLength" : "1",
+      "MaxLength" : "64",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    }
+  },
+
+  "Mappings" : {
+    "AWSRegion2AMI" : {
+      "us-east-1" : {"ImageId": "ami-08111162"},
+      "us-west-2" : {"ImageId": "ami-c229c0a2"},
+      "us-west-1" : {"ImageId": "ami-1b0f7d7b"}
+    }
+  },
+
+  "Resources" : {
+
+    "WPElasticLoadBalancer" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : "" },
+        "CrossZone" : "true",
+        "LBCookieStickinessPolicy" : [ {
+          "PolicyName" : "CookieBasedPolicy",
+          "CookieExpirationPeriod" : "30"
+        } ],
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP",
+          "PolicyNames" : [ "CookieBasedPolicy" ]
+        } ],
+        "HealthCheck" : {
+          "Target" : "HTTP :80/wordpress/wp-admin/install.php",
+          "HealthyThreshold" : "2",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "10",
+          "Timeout" : "5"
+        }
+      }
+    },
+
+    "WPInstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP access via port 80 locked down to the load balancer + SSH access",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.OwnerAlias"]}, "SourceSecurityGroupName" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.GroupName"]}},
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"}}
+        ]
+      }
+    },
+
+    "WPInstance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : {"Fn::FindInMap" : ["AWSRegion2AMI", {"Ref" : "AWS::Region"}, "ImageId"]},
+        "InstanceType" : {"Ref" : "WPInstanceType"}
+      }
+    }
+  },
+
+  "Outputs" : {
+  }
+
+}
