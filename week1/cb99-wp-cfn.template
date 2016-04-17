@@ -4,7 +4,7 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
 
   "Metadata" : {
-    "Version" : "0.1.0"
+    "Version" : "0.1.1"
   },
 
   "Parameters" : {
@@ -109,7 +109,28 @@
           "UnhealthyThreshold" : "5",
           "Interval" : "10",
           "Timeout" : "5"
-        }
+        },
+        "SecurityGroups": [
+          {"Ref": "WPELBSecurityGroup"}
+        ]
+      }
+    },
+
+    "WPELBSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable external HTTP access via port 80 to the ELB",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "50.181.212.118/32"}
+        ]
+      }
+    },
+
+    "WPInstance" : {
+      "Type" : "AWS::EC2::Instance",
+      "Properties" : {
+        "ImageId" : {"Fn::FindInMap" : ["AWSRegion2AMI", {"Ref" : "AWS::Region"}, "ImageId"]},
+        "InstanceType" : {"Ref" : "WPInstanceType"}
       }
     },
 
@@ -121,14 +142,6 @@
           {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.OwnerAlias"]}, "SourceSecurityGroupName" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.GroupName"]}},
           {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"}}
         ]
-      }
-    },
-
-    "WPInstance" : {
-      "Type" : "AWS::EC2::Instance",
-      "Properties" : {
-        "ImageId" : {"Fn::FindInMap" : ["AWSRegion2AMI", {"Ref" : "AWS::Region"}, "ImageId"]},
-        "InstanceType" : {"Ref" : "WPInstanceType"}
       }
     }
   },
