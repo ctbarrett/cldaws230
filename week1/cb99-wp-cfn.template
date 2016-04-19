@@ -4,7 +4,7 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
 
   "Metadata" : {
-    "Version" : "0.1.1"
+    "Version" : "0.1.2"
   },
 
   "Parameters" : {
@@ -80,7 +80,7 @@
 
   "Mappings" : {
     "AWSRegion2AMI" : {
-      "us-east-1" : {"ImageId": "ami-08111162"},
+      "us-east-1" : {"ImageId": "ami-580a0232"},
       "us-west-2" : {"ImageId": "ami-c229c0a2"},
       "us-west-1" : {"ImageId": "ami-1b0f7d7b"}
     }
@@ -126,11 +126,62 @@
       }
     },
 
-    "WPInstance" : {
-      "Type" : "AWS::EC2::Instance",
-      "Properties" : {
-        "ImageId" : {"Fn::FindInMap" : ["AWSRegion2AMI", {"Ref" : "AWS::Region"}, "ImageId"]},
-        "InstanceType" : {"Ref" : "WPInstanceType"}
+    "WPLaunchConfig": {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "configSets" : {
+            "configure_yum_updates" : ["add_yum_cron"],
+            "configure_wordpress" : ["configure_wordpress"]
+          },
+          "configure_yum_updates" : {
+            "files" : {
+              "/etc/cron.daily/yum-security-updates" : {
+                "content" : { "Fn::Join" : [ "", [
+                  "#!/bin/bash\n",
+                  "/usr/bin/yum -y update --security\n"
+                ]]},
+                "mode" : "000755",
+                "owner" : "root",
+                "group" : "root"
+              }
+            }
+          },
+
+          "configure_wordpress" : {
+            "files" : {
+              "/tmp/update-wp-config" : {
+                "content" : { "Fn::Join" : [ "", [
+                  "#!/bin/bash\n",
+                  "sed -i \"s/'database_name_here'/'",{ "Ref" : "DBName" }, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'username_here'/'",{ "Ref" : "DBUser" }, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'password_here'/'",{ "Ref" : "DBPassword" }, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'localhost'/'",{ "Fn::GetAtt" : [ "DBInstance", "Endpoint.Address" ] }, "'/g\" wp-config.php\n"
+                ]]},
+                "mode" : "000500",
+                "owner" : "root",
+                "group" : "root"
+              }
+            },
+            "commands" : {
+              "configure_wordpress" : {
+                "command" : "/tmp/update-wp-config",
+                "cwd" : "/var/www/html/wordpress"
+              }
+            },
+            "services" : {
+              "sysvinit" : {
+                "httpd" : { "enabled" : "true", "ensureRunning" : "true" }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "ImageId"]},
+        "InstanceType"   : { "Ref" : "WPInstanceType" },
+        "SecurityGroups" : [ {"Ref" : "WPInstanceSecurityGroup"} ],
+        "KeyName"        : { "Ref" : "SSHKey" }
       }
     },
 

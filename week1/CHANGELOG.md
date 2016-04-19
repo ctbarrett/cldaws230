@@ -1,5 +1,9 @@
 # Change history for CB99 wordpress cloudformation stack
 
+## 0.1.2
+
+*   added WPLaunchConfig
+
 ## 0.1.1
 
 *   added WPELBSecurityGroup
