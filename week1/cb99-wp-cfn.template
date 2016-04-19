@@ -4,7 +4,7 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
 
   "Metadata" : {
-    "Version" : "0.1.2"
+    "Version" : "0.2.0"
   },
 
   "Parameters" : {
@@ -68,13 +68,30 @@
     },
 
     "DBName" : {
-      "Default" : "wordpressdb",
       "Description" : "The WordPress database name",
       "Type" : "String",
+      "Default" : "wordpressdb",
       "MinLength" : "1",
       "MaxLength" : "64",
       "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
       "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "DBSize" : {
+      "Description" : "The size of the database",
+      "Type": "Number",
+      "Default": "1",
+      "MinValue": "1",
+      "MaxValue": "10",
+      "ConstraintDescription" : "must be between 1 and 10Gb."
+    },
+
+    "IsMultiAZ" : {
+      "Description" : "Select whether RDS database should use multiple availability zones",
+      "Type": "String",
+      "Default" : "false",
+      "AllowedValues" : [ "true", "false" ],
+      "ConstraintDescription" : "must be true or false."
     }
   },
 
@@ -126,6 +143,30 @@
       }
     },
 
+    "WPAutoScalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : "" },
+        "LaunchConfigurationName" : { "Ref" : "WPLaunchConfig" },
+        "MinSize" : "1",
+        "MaxSize" : "5",
+        "DesiredCapacity" : { "Ref" : "WPInstanceCount" },
+        "LoadBalancerNames" : [ { "Ref" : "WPElasticLoadBalancer" } ]
+      },
+      "CreationPolicy" : {
+        "ResourceSignal" : {
+          "Timeout" : "PT15M"
+        }
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": "1",
+          "MaxBatchSize": "1",
+          "PauseTime" : "PT15M"
+        }
+      }
+    },
+
     "WPLaunchConfig": {
       "Type" : "AWS::AutoScaling::LaunchConfiguration",
       "Metadata" : {
@@ -154,8 +195,8 @@
                 "content" : { "Fn::Join" : [ "", [
                   "#!/bin/bash\n",
                   "sed -i \"s/'database_name_here'/'",{ "Ref" : "DBName" }, "'/g\" wp-config.php\n",
-                  "sed -i \"s/'username_here'/'",{ "Ref" : "DBUser" }, "'/g\" wp-config.php\n",
-                  "sed -i \"s/'password_here'/'",{ "Ref" : "DBPassword" }, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'username_here'/'",{ "Ref" : "DBAdminUser" }, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'password_here'/'",{ "Ref" : "DBAdminPassword" }, "'/g\" wp-config.php\n",
                   "sed -i \"s/'localhost'/'",{ "Fn::GetAtt" : [ "DBInstance", "Endpoint.Address" ] }, "'/g\" wp-config.php\n"
                 ]]},
                 "mode" : "000500",
@@ -193,6 +234,33 @@
           {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.OwnerAlias"]}, "SourceSecurityGroupName" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.GroupName"]}},
           {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"}}
         ]
+      }
+    },
+
+    "DBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription": "Open database for access",
+        "SecurityGroupIngress" : [{
+          "IpProtocol" : "tcp",
+          "FromPort" : "3306",
+          "ToPort" : "3306",
+          "SourceSecurityGroupName" : { "Ref" : "WPInstanceSecurityGroup" }
+        }]
+      }
+    },
+
+    "DBInstance" : {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBName"            : { "Ref" : "DBName" },
+        "Engine"            : "MySQL",
+        "MultiAZ"           : { "Ref": "IsMultiAZ" },
+        "MasterUsername"    : { "Ref" : "DBAdminUser" },
+        "MasterUserPassword": { "Ref" : "DBAdminPassword" },
+        "DBInstanceClass"   : { "Ref" : "DBInstanceType" },
+        "AllocatedStorage"  : { "Ref" : "DBSize" },
+        "VPCSecurityGroups": { "Fn::GetAtt": [ "DBSecurityGroup", "GroupId" ] }
       }
     }
   },
