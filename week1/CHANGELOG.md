@@ -1,5 +1,9 @@
 # Change history for CB99 wordpress cloudformation stack
 
+## 0.2.1
+
+*   added ELB DNS Name to Outputs
+
 ## 0.2.0
 
 *   added DBInstance & WPAutoScalingGroup

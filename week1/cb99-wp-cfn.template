@@ -4,7 +4,7 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
 
   "Metadata" : {
-    "Version" : "0.2.0"
+    "Version" : "0.2.1"
   },
 
   "Parameters" : {
@@ -266,6 +266,10 @@
   },
 
   "Outputs" : {
+    "WPElasticLoadBalancerDNSName" : {
+      "Description": "The DNSName of the load balancer",
+      "Value" : { "Fn::GetAtt" : [ "WPElasticLoadBalancer", "DNSName" ]}
+    }
   }
 
 }
