@@ -1,5 +1,9 @@
 # Change history for CB99 wordpress cloudformation stack
 
+## 0.2.3
+
+*   fixed typo in ELB health check
+
 ## 0.2.2
 
 *   changed Ref functions to Fn::GetAtt for security group IDs

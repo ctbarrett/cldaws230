@@ -4,7 +4,7 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
 
   "Metadata" : {
-    "Version" : "0.2.2"
+    "Version" : "0.2.3"
   },
 
   "Parameters" : {
@@ -121,7 +121,7 @@
           "PolicyNames" : [ "CookieBasedPolicy" ]
         } ],
         "HealthCheck" : {
-          "Target" : "HTTP :80/wordpress/wp-admin/install.php",
+          "Target" : "HTTP:80/wordpress/wp-admin/install.php",
           "HealthyThreshold" : "2",
           "UnhealthyThreshold" : "5",
           "Interval" : "10",
