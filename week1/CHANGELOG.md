@@ -1,5 +1,9 @@
 # Change history for CB99 wordpress cloudformation stack
 
+## 0.2.2
+
+*   changed Ref functions to Fn::GetAtt for security group IDs
+
 ## 0.2.1
 
 *   added ELB DNS Name to Outputs

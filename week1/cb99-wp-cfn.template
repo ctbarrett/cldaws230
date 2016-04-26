@@ -4,7 +4,7 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
 
   "Metadata" : {
-    "Version" : "0.2.1"
+    "Version" : "0.2.2"
   },
 
   "Parameters" : {
@@ -128,7 +128,7 @@
           "Timeout" : "5"
         },
         "SecurityGroups": [
-          {"Ref": "WPELBSecurityGroup"}
+          {"Fn::GetAtt": [ "WPELBSecurityGroup", "GroupId" ]}
         ]
       }
     },
@@ -221,7 +221,7 @@
       "Properties": {
         "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "ImageId"]},
         "InstanceType"   : { "Ref" : "WPInstanceType" },
-        "SecurityGroups" : [ {"Ref" : "WPInstanceSecurityGroup"} ],
+        "SecurityGroups" : [ {"Fn::GetAtt" : [ "WPInstanceSecurityGroup", "GroupId" ]} ],
         "KeyName"        : { "Ref" : "SSHKey" }
       }
     },
@@ -245,7 +245,7 @@
           "IpProtocol" : "tcp",
           "FromPort" : "3306",
           "ToPort" : "3306",
-          "SourceSecurityGroupName" : { "Ref" : "WPInstanceSecurityGroup" }
+          "SourceSecurityGroupName" : { "Fn::GetAtt" : [ "WPInstanceSecurityGroup", "GroupId" ] }
         }]
       }
     },
