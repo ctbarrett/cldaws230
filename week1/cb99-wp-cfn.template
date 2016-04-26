@@ -4,7 +4,7 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
 
   "Metadata" : {
-    "Version" : "0.2.3"
+    "Version" : "0.2.4"
   },
 
   "Parameters" : {
@@ -105,6 +105,16 @@
 
   "Resources" : {
 
+    "WPELBSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable external HTTP access via port 80 to the ELB",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "50.181.212.118/32"}
+        ]
+      }
+    },
+
     "WPElasticLoadBalancer" : {
       "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
       "Properties" : {
@@ -133,16 +143,6 @@
       }
     },
 
-    "WPELBSecurityGroup" : {
-      "Type" : "AWS::EC2::SecurityGroup",
-      "Properties" : {
-        "GroupDescription" : "Enable external HTTP access via port 80 to the ELB",
-        "SecurityGroupIngress" : [
-          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "50.181.212.118/32"}
-        ]
-      }
-    },
-
     "WPAutoScalingGroup" : {
       "Type" : "AWS::AutoScaling::AutoScalingGroup",
       "Properties" : {
@@ -164,6 +164,17 @@
           "MaxBatchSize": "1",
           "PauseTime" : "PT15M"
         }
+      }
+    },
+
+    "WPInstanceSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP access via port 80 locked down to the load balancer + SSH access",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.OwnerAlias"]}, "SourceSecurityGroupName" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.GroupName"]}},
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"}}
+        ]
       }
     },
 
@@ -223,17 +234,6 @@
         "InstanceType"   : { "Ref" : "WPInstanceType" },
         "SecurityGroups" : [ {"Fn::GetAtt" : [ "WPInstanceSecurityGroup", "GroupId" ]} ],
         "KeyName"        : { "Ref" : "SSHKey" }
-      }
-    },
-
-    "WPInstanceSecurityGroup" : {
-      "Type" : "AWS::EC2::SecurityGroup",
-      "Properties" : {
-        "GroupDescription" : "Enable HTTP access via port 80 locked down to the load balancer + SSH access",
-        "SecurityGroupIngress" : [
-          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.OwnerAlias"]}, "SourceSecurityGroupName" : {"Fn::GetAtt" : ["WPElasticLoadBalancer", "SourceSecurityGroup.GroupName"]}},
-          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"}}
-        ]
       }
     },
 

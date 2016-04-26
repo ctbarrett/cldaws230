@@ -1,5 +1,9 @@
 # Change history for CB99 wordpress cloudformation stack
 
+## 0.2.4
+
+*   reordered resource to ensure dependencies are created before they are used
+
 ## 0.2.3
 
 *   fixed typo in ELB health check
