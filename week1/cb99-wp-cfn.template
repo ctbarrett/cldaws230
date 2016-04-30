@@ -1,10 +1,10 @@
 {
   "AWSTemplateFormatVersion" : "2010-09-09",
 
-  "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database.",
+  "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database. Custom AMIs available in us-east-1 and us-west-2",
 
   "Metadata" : {
-    "Version" : "0.2.4"
+    "Version" : "0.2.7"
   },
 
   "Parameters" : {
@@ -21,12 +21,6 @@
       "Default" : "1",
       "MinValue" : "0",
       "MaxValue" : "5"
-    },
-
-    "SSHKey" : {
-      "Description" : "Enter the name of an AWS SSH keypair that will be used to access the EC2 instances",
-      "Type" : "AWS::EC2::KeyPair::KeyName",
-      "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
     },
 
     "SSHLocation" : {
@@ -80,10 +74,10 @@
     "DBSize" : {
       "Description" : "The size of the database",
       "Type": "Number",
-      "Default": "1",
-      "MinValue": "1",
-      "MaxValue": "10",
-      "ConstraintDescription" : "must be between 1 and 10Gb."
+      "Default": "5",
+      "MinValue": "5",
+      "MaxValue": "15",
+      "ConstraintDescription" : "must be between 5 and 15Gb."
     },
 
     "IsMultiAZ" : {
@@ -98,8 +92,11 @@
   "Mappings" : {
     "AWSRegion2AMI" : {
       "us-east-1" : {"ImageId": "ami-580a0232"},
-      "us-west-2" : {"ImageId": "ami-c229c0a2"},
-      "us-west-1" : {"ImageId": "ami-1b0f7d7b"}
+      "us-west-2" : {"ImageId": "ami-bdf808dd"}
+    },
+    "AWSRegion2SSHKey" : {
+      "us-east-1" : {"SSHKey": "cb99-aws"},
+      "us-west-2" : {"SSHKey": "cb99-w2"}
     }
   },
 
@@ -183,8 +180,36 @@
       "Metadata" : {
         "AWS::CloudFormation::Init" : {
           "configSets" : {
-            "configure_yum_updates" : ["add_yum_cron"],
-            "configure_wordpress" : ["configure_wordpress"]
+            "wordpress_setup" : ["install_cfn", "add_yum_cron", "configure_wordpress"]
+          },
+          "install_cfn" : {
+            "files": {
+              "/etc/cfn/cfn-hup.conf": {
+                "content": { "Fn::Join": [ "", [
+                  "[main]\n",
+                  "stack=", { "Ref": "AWS::StackId" }, "\n",
+                  "region=", { "Ref": "AWS::Region" }, "\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/etc/cfn/hooks.d/cfn-auto-reloader.conf": {
+                "content": { "Fn::Join": [ "", [
+                  "[cfn-auto-reloader-hook]\n",
+                  "triggers=post.update\n",
+                  "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
+                  "action=/opt/aws/bin/cfn-init -v ",
+                          "         --stack ", { "Ref" : "AWS::StackName" },
+                          "         --resource LaunchConfig ",
+                          "         --configsets add_yum_cron configure_wordpress ",
+                          "         --region ", { "Ref" : "AWS::Region" }, "\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              }
+            }
           },
           "configure_yum_updates" : {
             "files" : {
@@ -232,21 +257,18 @@
       "Properties": {
         "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "ImageId"]},
         "InstanceType"   : { "Ref" : "WPInstanceType" },
-        "SecurityGroups" : [ {"Fn::GetAtt" : [ "WPInstanceSecurityGroup", "GroupId" ]} ],
-        "KeyName"        : { "Ref" : "SSHKey" }
+        "SecurityGroups" : [{"Fn::GetAtt" : [ "WPInstanceSecurityGroup", "GroupId" ] }],
+        "KeyName"        : { "Fn::FindInMap" : [ "AWSRegion2SSHKey", { "Ref" : "AWS::Region" }, "SSHKey" ]}
       }
     },
 
     "DBSecurityGroup": {
-      "Type": "AWS::EC2::SecurityGroup",
+      "Type": "AWS::RDS::DBSecurityGroup",
       "Properties" : {
-        "GroupDescription": "Open database for access",
-        "SecurityGroupIngress" : [{
-          "IpProtocol" : "tcp",
-          "FromPort" : "3306",
-          "ToPort" : "3306",
-          "SourceSecurityGroupName" : { "Fn::GetAtt" : [ "WPInstanceSecurityGroup", "GroupId" ] }
-        }]
+        "GroupDescription": "Open database for access by WP instances",
+        "DBSecurityGroupIngress" : {
+          "EC2SecurityGroupName" : { "Ref" : "WPInstanceSecurityGroup" }
+        }
       }
     },
 
@@ -260,7 +282,7 @@
         "MasterUserPassword": { "Ref" : "DBAdminPassword" },
         "DBInstanceClass"   : { "Ref" : "DBInstanceType" },
         "AllocatedStorage"  : { "Ref" : "DBSize" },
-        "VPCSecurityGroups": { "Fn::GetAtt": [ "DBSecurityGroup", "GroupId" ] }
+        "DBSecurityGroups": [{ "Ref": "DBSecurityGroup" }]
       }
     }
   },
