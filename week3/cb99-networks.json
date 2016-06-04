@@ -1,0 +1,262 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "This stack will provision a new VPC and standard subnets, route tables, and internet gateway, per provided parameters",
+
+  "Metadata" : {
+    "Version" : "0.1.0"
+  },
+
+  "Parameters" : {
+
+    "VPCType": {
+      "Description": "Specify the type and environment for the VPC",
+      "Type": "String",
+      "Default": "internal-dev",
+      "AllowedValues": [
+        "infrastructure",
+        "internal-dev",
+        "internal-test",
+        "external-test",
+        "internal-prod",
+        "external-prod"
+      ]
+    },
+
+    "DeployRegion" : {
+      "Description" : "Select which AWS region to deploy VPC into",
+      "Type": "String",
+      "Default" : "west",
+      "AllowedValues" : [ "west", "east" ],
+      "ConstraintDescription" : "must be a valid AWS region in which we have configured resources"
+    }
+  },
+
+  "Mappings" : {
+    "west": {
+      "common": {
+        "Region": "us-west-2",
+        "shortRegion": "uw2",
+        "AZ1ID": "a",
+        "AZ2ID": "b",
+        "AZ3ID": "c",
+        "AZ1": "us-west-2a",
+        "AZ2": "us-west-2b",
+        "AZ3": "us-west-2c"
+      },
+
+      "infrastructure": {
+        "VPCIPRange": "10.0.0.0/22",
+        "SubnetAZ1CIDR": "10.0.0.0/24",
+        "SubnetAZ2CIDR": "10.0.1.0/24",
+        "SubnetAZ3CIDR": "10.0.2.0/24"
+      },
+
+      "internal-dev": {
+        "VPCIPRange": "10.0.4.0/22",
+        "SubnetAZ1CIDR": "10.0.4.0/24",
+        "SubnetAZ2CIDR": "10.0.5.0/24",
+        "SubnetAZ3CIDR": "10.0.6.0/24"
+      },
+
+      "internal-test": {
+        "VPCIPRange": "10.0.8.0/22",
+        "SubnetAZ1CIDR": "10.0.8.0/24",
+        "SubnetAZ2CIDR": "10.0.9.0/24",
+        "SubnetAZ3CIDR": "10.0.10.0/24"
+      },
+
+      "external-test": {
+        "VPCIPRange": "10.0.12.0/22",
+        "SubnetAZ1CIDR": "10.0.12.0/24",
+        "SubnetAZ2CIDR": "10.0.13.0/24",
+        "SubnetAZ3CIDR": "10.0.14.0/24"
+      },
+
+      "internal-prod": {
+        "VPCIPRange": "10.0.16.0/22",
+        "SubnetAZ1CIDR": "10.0.16.0/24",
+        "SubnetAZ2CIDR": "10.0.17.0/24",
+        "SubnetAZ3CIDR": "10.0.18.0/24"
+      },
+
+      "external-prod": {
+        "VPCIPRange": "10.0.20.0/22",
+        "SubnetAZ1CIDR": "10.0.20.0/24",
+        "SubnetAZ2CIDR": "10.0.21.0/24",
+        "SubnetAZ3CIDR": "10.0.22.0/24"
+      }
+    },
+
+    "east": {
+      "common": {
+        "Region": "us-east-1",
+        "shortRegion": "ue1",
+        "AZ1ID": "b",
+        "AZ2ID": "c",
+        "AZ3ID": "d",
+        "AZ1": "us-east-1b",
+        "AZ2": "us-east-1c",
+        "AZ3": "us-east-1d"
+      },
+
+      "infrastructure": {
+        "VPCIPRange": "10.10.0.0/22",
+        "SubnetAZ1CIDR": "10.10.0.0/24",
+        "SubnetAZ2CIDR": "10.10.1.0/24",
+        "SubnetAZ3CIDR": "10.10.2.0/24"
+      },
+
+      "internal-dev": {
+        "VPCIPRange": "10.10.4.0/22",
+        "SubnetAZ1CIDR": "10.10.4.0/24",
+        "SubnetAZ2CIDR": "10.10.5.0/24",
+        "SubnetAZ3CIDR": "10.10.6.0/24"
+      },
+
+      "internal-test": {
+        "VPCIPRange": "10.10.8.0/22",
+        "SubnetAZ1CIDR": "10.10.8.0/24",
+        "SubnetAZ2CIDR": "10.10.9.0/24",
+        "SubnetAZ3CIDR": "10.10.10.0/24"
+      },
+
+      "external-test": {
+        "VPCIPRange": "10.10.12.0/22",
+        "SubnetAZ1CIDR": "10.10.12.0/24",
+        "SubnetAZ2CIDR": "10.10.13.0/24",
+        "SubnetAZ3CIDR": "10.10.14.0/24"
+      },
+
+      "internal-prod": {
+        "VPCIPRange": "10.10.16.0/22",
+        "SubnetAZ1CIDR": "10.10.16.0/24",
+        "SubnetAZ2CIDR": "10.10.17.0/24",
+        "SubnetAZ3CIDR": "10.10.18.0/24"
+      },
+
+      "external-prod": {
+        "VPCIPRange": "10.10.20.0/22",
+        "SubnetAZ1CIDR": "10.10.20.0/24",
+        "SubnetAZ2CIDR": "10.10.21.0/24",
+        "SubnetAZ3CIDR": "10.10.22.0/24"
+      }
+    }
+  },
+
+  "Conditions": {
+    "HasPublicSubnets": {
+      "Fn::Or": [
+        {"Fn::Equals": [ { "Ref": "VPCType" }, "external-test" ] },
+        {"Fn::Equals": [ { "Ref": "VPCType" }, "external-prod" ] }
+      ]
+    }
+  },
+
+  "Resources" : {
+    "VPC": {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, { "Ref": "VPCType" }, "VPCIPRange" ] },
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [
+            "vpc",
+            { "Ref": "VPCType" },
+            { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "shortRegion" ] }
+          ]]}
+        }]
+      }
+    },
+
+    "SubnetAZ1": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "AZ1" ] },
+        "CidrBlock" : { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, { "Ref": "VPCType" }, "SubnetAZ1CIDR" ] },
+        "MapPublicIpOnLaunch" : {
+          "Fn::If": [
+            "HasPublicSubnets",
+            "true",
+            "false"
+          ]
+        },
+        "Tags" : [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [
+            "subnet",
+            { "Ref": "VPCType" },
+            { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "shortRegion" ] },
+            "az1"
+          ]]}
+        }],
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+
+    "SubnetAZ2": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "AZ2" ] },
+        "CidrBlock" : { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, { "Ref": "VPCType" }, "SubnetAZ2CIDR" ] },
+        "MapPublicIpOnLaunch" : {
+          "Fn::If": [
+            "HasPublicSubnets",
+            "true",
+            "false"
+          ]
+        },
+        "Tags" : [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [
+            "subnet",
+            { "Ref": "VPCType" },
+            { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "shortRegion" ] },
+            "az2"
+          ]]}
+        }],
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+
+    "SubnetAZ3": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "AZ3" ] },
+        "CidrBlock" : { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, { "Ref": "VPCType" }, "SubnetAZ3CIDR" ] },
+        "MapPublicIpOnLaunch" : {
+          "Fn::If": [
+            "HasPublicSubnets",
+            "true",
+            "false"
+          ]
+        },
+        "Tags" : [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [
+            "subnet",
+            { "Ref": "VPCType" },
+            { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "shortRegion" ] },
+            "az3"
+          ]]}
+        }],
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    }
+  },
+
+  "Outputs" : {
+    "VPCName": {
+      "Description": "The name of the new/updated VPC",
+      "Value": { "Fn::Join": [ "-", [
+        "vpc",
+        { "Ref": "VPCType" },
+        { "Fn::FindInMap": [ { "Ref": "DeployRegion" }, "common", "shortRegion" ] }
+      ]]}
+    },
+    "VPCID": {
+      "Description": "The VPC-ID for the new/updated VPC",
+      "Value": { "Ref": "VPC" }
+    }
+  }
+}
