@@ -1,0 +1,120 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "This stack will provision a new VPC and standard subnets, route tables, and internet gateway, per provided parameters",
+
+  "Parameters" : {
+
+    "VPCName": {
+      "Description": "Specify the name for the VPC",
+      "Type": "String",
+      "Default": "TestVPC"
+    },
+
+    "VPCIPRange": {
+      "Description": "The IP Range for the VPC being created",
+      "Type": "String",
+      "Default": "10.0.0.0/16",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "Must be a valid IP range in CIDR notation (x.x.x.x/x)"
+    },
+
+    "PrivateSubnetIPRange": {
+      "Description": "The IP Range for the private subnet",
+      "Type": "String",
+      "Default": "10.0.0.0/24",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "Must be a valid IP range in CIDR notation (x.x.x.x/x)"
+    },
+
+    "PublicSubnetIPRange": {
+      "Description": "The IP Range for the public subnet",
+      "Type": "String",
+      "Default": "10.0.1.0/24",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "Must be a valid IP range in CIDR notation (x.x.x.x/x)"
+    }
+  },
+
+  "Resources" : {
+    "VPC": {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : { "Ref": "VPCIPRange" },
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "vpc", { "Ref": "VPCName" } ]]}
+        }]
+      }
+    },
+
+    "IGW": {
+      "Type" : "AWS::EC2::InternetGateway",
+      "Properties" : {
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "igw", { "Ref": "VPCName" } ] ] }
+        }]
+      }
+    },
+
+    "IGWAttachment": {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "VpcId" : { "Ref": "VPC" },
+        "InternetGatewayId" : { "Ref": "IGW" }
+      }
+    },
+
+    "PrivateSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "AvailabilityZone" : "us-west-2a",
+        "CidrBlock" : { "Ref": "PrivateSubnetIPRange" },
+        "MapPublicIpOnLaunch" : "false",
+        "Tags" : [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VPCName" }, "priv" ] ] }
+        }]
+      }
+    },
+
+    "PublicSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "AvailabilityZone" : "us-west-2a",
+        "CidrBlock" : { "Ref": "PublicSubnetIPRange" },
+        "MapPublicIpOnLaunch" : "true",
+        "Tags" : [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VPCName" }, "pub" ]]}
+        }]
+      }
+    },
+
+    "RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": { "Ref": "VPC" },
+        "Tags" : [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "rtetbl", { "Ref": "VPCName" } ]]}
+        }]
+      }
+    },
+
+    "Route": {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref": "RouteTable" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref": "IGW" }
+      },
+      "DependsOn": "IGWAttachment"
+    }
+
+  }
+
+}
