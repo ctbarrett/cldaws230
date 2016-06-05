@@ -66,6 +66,27 @@
       }
     },
 
+    "RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": { "Ref": "VPC" },
+        "Tags" : [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "rtetbl", { "Ref": "VPCName" } ]]}
+        }]
+      }
+    },
+
+    "Route": {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref": "RouteTable" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref": "IGW" }
+      },
+      "DependsOn": "IGWAttachment"
+    },
+
     "PrivateSubnet": {
       "Type" : "AWS::EC2::Subnet",
       "Properties" : {
@@ -94,27 +115,13 @@
       }
     },
 
-    "RouteTable": {
-      "Type": "AWS::EC2::RouteTable",
-      "Properties": {
-        "VpcId": { "Ref": "VPC" },
-        "Tags" : [{
-          "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "rtetbl", { "Ref": "VPCName" } ]]}
-        }]
-      }
-    },
-
-    "Route": {
-      "Type" : "AWS::EC2::Route",
+    "PublicSubnetRTA": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
       "Properties" : {
         "RouteTableId" : { "Ref": "RouteTable" },
-        "DestinationCidrBlock" : "0.0.0.0/0",
-        "GatewayId" : { "Ref": "IGW" }
-      },
-      "DependsOn": "IGWAttachment"
+        "SubnetId" : { "Ref": "PublicSubnet" }
+      }
     }
-
   }
 
 }
