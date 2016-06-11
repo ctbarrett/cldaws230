@@ -4,10 +4,11 @@
   "Description" : "This stack will provision a redundant wordpress installation spanning multiple AZ's, using an auto-scaling group, launch configuration, and elastic load balancer for the wordpress EC2 instances, and RDS for the backend database. Custom AMIs available in us-east-1 and us-west-2",
 
   "Metadata" : {
-    "Version" : "0.2.7"
+    "Version" : "0.2.8"
   },
 
   "Parameters" : {
+
     "WPInstanceType" : {
       "Description" : "Enter desired instance type for WP nodes; default is t2.micro",
       "Type" : "String",
@@ -219,7 +220,7 @@
                   "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
                   "action=/opt/aws/bin/cfn-init -v ",
                           "         --stack ", { "Ref" : "AWS::StackName" },
-                          "         --resource LaunchConfig ",
+                          "         --resource WPLaunchConfig ",
                           "         --configsets add_yum_cron configure_wordpress ",
                           "         --region ", { "Ref" : "AWS::Region" }, "\n"
                 ]]},
@@ -276,7 +277,24 @@
         "ImageId" : { "Fn::FindInMap" : [ "AWSRegion2AMI", { "Ref" : "AWS::Region" }, "ImageId"]},
         "InstanceType"   : { "Ref" : "WPInstanceType" },
         "SecurityGroups" : [{"Fn::GetAtt" : [ "WPInstanceSecurityGroup", "GroupId" ] }],
-        "KeyName"        : { "Fn::FindInMap" : [ "AWSRegion2SSHKey", { "Ref" : "AWS::Region" }, "SSHKey" ]}
+        "KeyName"        : { "Fn::FindInMap" : [ "AWSRegion2SSHKey", { "Ref" : "AWS::Region" }, "SSHKey" ]},
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/usr/bin/env bash\n",
+          "yum update -y aws-cfn-bootstrap\n",
+
+          "/opt/aws/bin/cfn-init -v ",
+          "         --stack ", { "Ref" : "AWS::StackName" },
+          "         --region ", { "Ref" : "AWS::Region" },
+          "         --resource WPLaunchConfig ",
+          "         --configsets wordpress_setup ",
+          "\n",
+
+          "/opt/aws/bin/cfn-signal -e $? ",
+          "         --stack ", { "Ref" : "AWS::StackName" },
+          "         --region ", { "Ref" : "AWS::Region" },
+          "         --resource WPAutoScalingGroup",
+          "\n"
+        ]]}}
       }
     },
 
