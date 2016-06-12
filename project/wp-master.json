@@ -1,0 +1,37 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Provision a new wordpress environment into a new VPC",
+
+  "Parameters" : {
+
+    "EnvName": {
+      "Description": "Specify a name for the environment",
+      "Type": "String",
+      "Default": "cb99"
+    }
+  },
+
+  "Resources" : {
+    "VpcStack": {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "Parameters" : {
+        },
+        "TemplateURL": { "Fn::Join": [ "", [ "https://", { "Ref": "S3Bucket" }, "cft/vpc.json" ] ] },
+        "TimeoutInMinutes": "5",
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "cfn", { "Ref": "EnvName" }, "vpc" ]]}
+        }]
+      }
+    }
+  },
+
+  "Outputs": {
+    "VPC": {
+      "Description": "VPC",
+      "Value": { "Fn::GetAtt": [ "VpcStack", "Outputs.VPC" ] }
+    }
+  }
+}
