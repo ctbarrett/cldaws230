@@ -125,7 +125,7 @@
       "Properties" : {
         "VpcId" : { "Ref" : "VPC" },
         "AvailabilityZone" : { "Fn::Select": [ 2, { "Fn::GetAZs": { "Ref": "AWS::Region" } } ] },
-        "CidrBlock" : { "Fn::Join": [ "", [ "10.", { "Ref": "VpcNetId" }, ".72.0/20" ] ] },
+        "CidrBlock" : { "Fn::Join": [ "", [ "10.", { "Ref": "VpcNetId" }, ".80.0/20" ] ] },
         "MapPublicIpOnLaunch" : "true",
         "Tags" : [{
           "Key": "Name",
