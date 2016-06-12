@@ -1,0 +1,208 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "This stack will provision a redundant wordpress infrastructure",
+
+  "Parameters": {
+
+    "AdminIP": {
+      "Description": "The IP address range that can be used to SSH to the EC2 instances",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "50.181.212.118/32",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+    },
+
+    "ClientIP": {
+      "Description": "The IP address range for external clients accessing the blog (used to limit access for testing)",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "50.181.212.118/32",
+      "Default": "0.0.0.0/0",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+    },
+
+    "SSHKey": {
+      "Description": "The name of an EC2 SSH keypair to login to WP EC2 instances. Should be available in all regions",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Default": "cb99",
+      "ConstraintDescription": "Must be a valid EC2 KeyPair"
+    },
+
+    "VPC": {
+      "Description": "vpc-id for the VPC for this app/environment",
+      "Type": "AWS::EC2::VPC::Id",
+      "ConstraintDescription": "Must be a valid VPC"
+    },
+
+    "PrivateSubnets": {
+      "Description": "List of private subnets to use for RDS EC2 instances",
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+
+    "PublicSubnets": {
+      "Description": "List of public subnets to use for Wordpress EC2 instances",
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+
+    "SiteID": {
+      "Description": "Site Identifier",
+      "Type": "String",
+      "Default": "cb99",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern": "[a-zA-Z][a-zA-Z0-9-_]*",
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters, hyphens or underscores."
+    },
+
+    "SiteAdminUser": {
+      "Description": "Enter admin user account; default is 'ljenkins'",
+      "Type": "String",
+      "Default": "ljenkins",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "SiteAdminPassword": {
+      "Description": "Enter admin password",
+      "Type": "String",
+      "Default": "supersecret",
+      "NoEcho": "true",
+      "MinLength": "8",
+      "MaxLength": "41",
+      "AllowedPattern": "[a-zA-Z0-9-_!@#$%^&*()\\.,]+",
+      "ConstraintDescription": "must contain only characters in the class: [a-zA-Z0-9-_!@#$%^&*()\\.,]"
+    },
+
+    "DBInstanceType": {
+      "Description": "Enter desired instance type for DB nodes; default is 'db.t2.micro'",
+      "Type": "String",
+      "Default": "db.t2.micro",
+      "AllowedValues": ["db.t2.micro", "db.t2.small", "db.t2.medium", "db.t2.large"],
+      "ConstraintDescription": "must select a valid database instance type."
+    },
+
+    "DBSize": {
+      "Description": "The size of the database",
+      "Type": "Number",
+      "Default": "5",
+      "MinValue": "5",
+      "MaxValue": "15",
+      "ConstraintDescription": "must be between 5 and 15Gb."
+    },
+
+    "DBBackupRetention": {
+      "Description": "The number of database backups to keep in rotation",
+      "Type": "Number",
+      "Default": "0",
+      "ConstraintDescription": "Must be a valid number"
+    }
+  },
+
+  "Mappings": {
+    "RegionMap": {
+      "us-west-2": {
+        "ImageId": "ami-bdf808dd",
+        "SSHKey": "cb99-w2"
+      },
+
+      "us-east-1": {
+        "ImageId": "ami-580a0232",
+        "SSHKey": "cb99-aws"
+      }
+    }
+  },
+
+  "Resources": {
+
+    "WPELBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {"Ref": "VPC"},
+        "GroupDescription": "Enable external HTTP access via port 80 to the ELB",
+        "SecurityGroupIngress": [
+          {"IpProtocol": "tcp", "FromPort": "80", "ToPort": "80", "CidrIp": {"Ref": "ClientIP"}}
+        ],
+        "Tags": [{
+          "Key": "Name",
+          "Value": {"Fn::Join": ["-", ["sg", {"Ref": "SiteID" }, "elb"]]}
+        }]
+      }
+    },
+
+    "WPInstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {"Ref": "VPC"},
+        "GroupDescription": "Enable HTTP access via port 80 locked down to the load balancer + SSH access",
+        "SecurityGroupIngress": [
+          {"IpProtocol": "tcp", "FromPort": "80", "ToPort": "80", "SourceSecurityGroupId": {"Ref": "WPELBSecurityGroup"}},
+          {"IpProtocol": "tcp", "FromPort": "80", "ToPort": "80", "CidrIp": {"Ref": "ClientIP"}},
+          {"IpProtocol": "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": {"Ref": "AdminIP"}}
+        ],
+        "Tags": [{
+          "Key": "Name",
+          "Value": {"Fn::Join": ["-", ["sg", {"Ref": "SiteID" }, "web"]]}
+        }]
+      }
+    },
+
+    "DBSecurityGroup": {
+      "Type": "AWS::RDS::DBSecurityGroup",
+      "Properties": {
+        "EC2VpcId" : { "Ref" : "VPC" },
+        "GroupDescription": "Open database for access by WP instances",
+        "DBSecurityGroupIngress": {
+          "EC2SecurityGroupId": {"Ref": "WPInstanceSecurityGroup"}
+        },
+        "Tags": [{
+          "Key": "Name",
+          "Value": {"Fn::Join": ["-", ["sg", {"Ref": "SiteID" }, "rds"]]}
+        }]
+      }
+    },
+
+    "DBSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "List of subnets to use for RDS instances",
+				"SubnetIds": {"Ref": "PrivateSubnets"},
+        "Tags": [{
+          "Key": "Name",
+          "Value": {"Fn::Join": ["-", ["sng", {"Ref": "SiteID" }, "rds"]]}
+        }]
+      }
+    },
+
+    "DBInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBName": "wordpress",
+        "DBInstanceIdentifier": {"Ref": "SiteID"},
+        "MasterUsername": {"Ref": "SiteAdminUser"},
+        "MasterUserPassword": {"Ref": "SiteAdminPassword"},
+        "MultiAZ": "true",
+        "Engine": "MySQL",
+        "StorageType": "gp2",
+        "AllocatedStorage": {"Ref": "DBSize"},
+        "BackupRetentionPeriod": {"Ref": "DBBackupRetention"},
+        "DBInstanceClass": {"Ref": "DBInstanceType"},
+        "DBSecurityGroups": [{"Ref": "DBSecurityGroup"}],
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "rds", { "Ref": "SiteID" }]]}
+        }]
+      }
+    }
+  },
+
+  "Outputs": {
+  }
+
+}

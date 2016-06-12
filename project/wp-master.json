@@ -5,11 +5,37 @@
 
   "Parameters" : {
 
-    "EnvName": {
-      "Description": "Specify a name for the environment",
+    "SiteID": {
+      "Description": "Site Identifier - specify a name for the environment",
       "Type": "String",
-      "Default": "cb99"
+      "Default": "cb99",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern": "[a-zA-Z][a-zA-Z0-9-_]*",
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters, hyphens or underscores."
+    },
+
+    "SiteAdminUser": {
+      "Description": "Enter admin user account; default is 'ljenkins'",
+      "Type": "String",
+      "Default": "ljenkins",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "SiteAdminPassword": {
+      "Description": "Enter admin password",
+      "Type": "String",
+      "Default": "supersecret",
+      "NoEcho": "true",
+      "MinLength": "8",
+      "MaxLength": "41",
+      "AllowedPattern": "[a-zA-Z0-9-_!@#$%^&*()\\.,]+",
+      "ConstraintDescription": "must contain only characters in the class: [a-zA-Z0-9-_!@#$%^&*()\\.,]"
     }
+
   },
 
   "Resources" : {
@@ -22,7 +48,33 @@
         "TimeoutInMinutes": "5",
         "Tags": [{
           "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "cfn", { "Ref": "EnvName" }, "vpc" ]]}
+          "Value": { "Fn::Join": [ "-", [ "cfn", { "Ref": "SiteID" }, "vpc" ]]}
+        }]
+      }
+    },
+
+    "WordpressStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "Parameters" : {
+          "SiteAdminPassword": {"Ref": "SiteAdminPassword"},
+          "VPC": {"Fn::GetAtt": ["VpcStack", "Outputs.VPC"]},
+          "PrivateSubnets": {"Fn::Join": [",", [
+            {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ1Private"]},
+            {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ2Private"]},
+            {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ3Private"]}
+          ]]},
+          "PublicSubnets": {"Fn::Join": [",", [
+            {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ1Public"]},
+            {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ2Public"]},
+            {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ3Public"]}
+          ]]}
+        },
+        "TemplateURL": "https://s3-us-west-2.amazonaws.com/cb99/cft/wordpress.json",
+        "TimeoutInMinutes": "15",
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [ "-", [ "cfn", { "Ref": "SiteID" }, "app" ]]}
         }]
       }
     }
