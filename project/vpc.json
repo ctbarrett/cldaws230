@@ -8,7 +8,7 @@
     "VpcName": {
       "Description": "Specify a name for the VPC",
       "Type": "String",
-      "Default": "VPC"
+      "Default": "cb99"
     },
 
     "VpcNetId": {
@@ -59,7 +59,7 @@
         "MapPublicIpOnLaunch" : "false",
         "Tags" : [{
           "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "priv" ] ] }
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "az1-priv" ] ] }
         }]
       }
     },
@@ -73,7 +73,7 @@
         "MapPublicIpOnLaunch" : "true",
         "Tags" : [{
           "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "pub" ] ] }
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "az1-pub" ] ] }
         }]
       }
     },
@@ -87,7 +87,7 @@
         "MapPublicIpOnLaunch" : "false",
         "Tags" : [{
           "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "priv" ] ] }
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "az2-priv" ] ] }
         }]
       }
     },
@@ -101,7 +101,7 @@
         "MapPublicIpOnLaunch" : "true",
         "Tags" : [{
           "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "pub" ] ] }
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "az2-pub" ] ] }
         }]
       }
     },
@@ -115,7 +115,7 @@
         "MapPublicIpOnLaunch" : "false",
         "Tags" : [{
           "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "priv" ] ] }
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "az3-priv" ] ] }
         }]
       }
     },
@@ -129,7 +129,7 @@
         "MapPublicIpOnLaunch" : "true",
         "Tags" : [{
           "Key": "Name",
-          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "pub" ] ] }
+          "Value": { "Fn::Join": [ "-", [ "subnet", { "Ref": "VpcName" }, "az3-pub" ] ] }
         }]
       }
     },

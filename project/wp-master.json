@@ -43,6 +43,7 @@
       "Type" : "AWS::CloudFormation::Stack",
       "Properties" : {
         "Parameters" : {
+          "VpcName": {"Ref": "SiteID"}
         },
         "TemplateURL": "https://s3-us-west-2.amazonaws.com/cb99/cft/vpc.json",
         "TimeoutInMinutes": "5",
