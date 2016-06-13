@@ -72,14 +72,14 @@
       "Type": "List<AWS::EC2::Subnet::Id>"
     },
 
-    "WPInstanceType": {
+    "WebServerInstanceType": {
       "Description": "Enter desired instance type for WP nodes; default is t2.micro",
       "Type": "String",
       "Default": "t2.micro",
       "AllowedValues": ["t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large"]
     },
 
-    "WPInstanceCount": {
+    "WebServerCount": {
       "Description": "Enter desired number of WP instances for auto-scaling group (1-5); default is 2",
       "Type": "Number",
       "Default": "1",
@@ -220,64 +220,91 @@
       "Type": "AWS::AutoScaling::LaunchConfiguration",
       "Metadata": {
         "AWS::CloudFormation::Init": {
-          "packages": {
-            "yum": {
-              "php": [],
-              "php-mysql": [],
-              "mysql": [],
-              "httpd": []
-            }
-          },
-          "sources": {
-            "/var/www/html": "https://wordpress.org/latest.tar.gz"
-          },
-          "files": {
-            "/etc/cron.daily/yum-security-updates": {
-              "content": {"Fn::Join": ["", [
-                "#!/bin/bash\n",
-                "/usr/bin/yum -y update --security\n"
-              ]]},
-              "mode": "000755",
-              "owner": "root",
-              "group": "root"
+          "config": {
+            "packages": {
+              "yum": {
+                "php": [],
+                "php-mysql": [],
+                "mysql": [],
+                "httpd": []
+              }
             },
-            "/root/configure_wp.sh": {
-              "content": {"Fn::Join": ["", [
-                "#!/bin/bash\n",
-                "cp wp-config-sample.php wp-config.php\n",
-                "sed -i \"s/'database_name_here'/'", "wordpress", "'/g\" wp-config.php\n",
-                "sed -i \"s/'username_here'/'", {"Ref": "SiteAdminUser"}, "'/g\" wp-config.php\n",
-                "sed -i \"s/'password_here'/'", {"Ref": "SiteAdminPassword"}, "'/g\" wp-config.php\n",
-                "sed -i \"s/'localhost'/'", {"Fn::GetAtt": ["DBInstance", "Endpoint.Address"]}, "'/g\" wp-config.php\n"
-              ]]},
-              "mode": "000500",
-              "owner": "root",
-              "group": "root"
-            }
-          },
-          "commands": {
-            "01_mv_files": {
-              "command": "mv * ../",
-              "cwd": "/var/www/html/wordpress"
+            "sources": {
+              "/var/www/html": "https://wordpress.org/latest.tar.gz"
             },
-            "02_rm_tmp_dir": {
-              "command": "rm -r /var/www/html/wordpress"
+            "files": {
+              "/etc/cron.daily/yum-security-updates": {
+                "content": {"Fn::Join": ["", [
+                  "#!/bin/bash\n",
+                  "/usr/bin/yum -y update --security\n"
+                ]]},
+                "mode": "000755",
+                "owner": "root",
+                "group": "root"
+              },
+              "/root/configure_wp.sh": {
+                "content": {"Fn::Join": ["", [
+                  "#!/bin/bash\n",
+                  "cp wp-config-sample.php wp-config.php\n",
+                  "sed -i \"s/'database_name_here'/'", "wordpress", "'/g\" wp-config.php\n",
+                  "sed -i \"s/'username_here'/'", {"Ref": "SiteAdminUser"}, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'password_here'/'", {"Ref": "SiteAdminPassword"}, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'localhost'/'", {"Fn::GetAtt": ["DBInstance", "Endpoint.Address"]}, "'/g\" wp-config.php\n"
+                ]]},
+                "mode": "000500",
+                "owner": "root",
+                "group": "root"
+              },
+              "/etc/cfn/cfn-hup.conf": {
+                "content": { "Fn::Join": [ "", [
+                  "[main]\n",
+                  "stack=", { "Ref": "AWS::StackId" }, "\n",
+                  "region=", { "Ref": "AWS::Region" }, "\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/etc/cfn/hooks.d/cfn-auto-reloader.conf": {
+                "content": {"Fn::Join": ["", [
+                  "[cfn-auto-reloader-hook]\n",
+                  "triggers=post.update\n",
+                  "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
+                  "action=/opt/aws/bin/cfn-init -v ",
+                  " --stack ", { "Ref" : "AWS::StackName" },
+                  " --region ", { "Ref" : "AWS::Region" },
+                  " --resource LaunchConfig ",
+                  "\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              }
             },
-            "configure_wp": {
-              "command": "/root/configure_wp.sh",
-              "cwd": "/var/www/html"
-            }
-          },
-          "services": {
-            "sysvinit": {
-              "httpd": {"enabled": "true", "ensureRunning": "true"}
+            "commands": {
+              "01_mv_files": {
+                "command": "mv * ../",
+                "cwd": "/var/www/html/wordpress"
+              },
+              "02_rm_tmp_dir": {
+                "command": "rm -r /var/www/html/wordpress"
+              },
+              "configure_wp": {
+                "command": "/root/configure_wp.sh",
+                "cwd": "/var/www/html"
+              }
+            },
+            "services": {
+              "sysvinit": {
+                "httpd": {"enabled": "true", "ensureRunning": "true"}
+              }
             }
           }
         }
       },
       "Properties": {
         "ImageId": {"Fn::FindInMap": ["RegionMap", {"Ref": "AWS::Region"}, "ImageId"]},
-        "InstanceType": {"Ref": "WPInstanceType" },
+        "InstanceType": {"Ref": "WebServerInstanceType" },
         "SecurityGroups": [{"Fn::GetAtt": ["WebServerSecurityGroup", "GroupId"]}],
         "KeyName": {"Ref": "SSHKey"},
         "UserData": {"Fn::Base64": {"Fn::Join": ["", [
@@ -320,7 +347,35 @@
         },
         "SecurityGroups": [
           {"Fn::GetAtt": ["ELBSecurityGroup", "GroupId"]}
-        ]
+        ],
+        "Tags": [{
+          "Key": "Name",
+          "Value": {"Fn::Join": ["-", ["elb", {"Ref": "SiteID"}]]}
+        }]
+      }
+    },
+
+    "AutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "VPCZoneIdentifier": {"Ref": "PublicSubnets"},
+        "LaunchConfigurationName": {"Ref": "LaunchConfig"},
+        "MinSize": "1",
+        "MaxSize": "5",
+        "DesiredCapacity": {"Ref": "WebServerCount"},
+        "LoadBalancerNames": [{"Ref": "LoadBalancer"}]
+      },
+      "CreationPolicy": {
+        "ResourceSignal": {
+          "Timeout": "PT15M"
+        }
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": "1",
+          "MaxBatchSize": "2",
+          "PauseTime": "PT15M"
+        }
       }
     }
   },
