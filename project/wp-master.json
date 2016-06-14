@@ -34,8 +34,43 @@
       "MaxLength": "41",
       "AllowedPattern": "[a-zA-Z0-9-_!@#$%^&*()\\.,]+",
       "ConstraintDescription": "must contain only characters in the class: [a-zA-Z0-9-_!@#$%^&*()\\.,]"
-    }
+    },
 
+    "SiteAdminEmail": {
+      "Description": "Enter admin email",
+      "Type": "String",
+      "Default": "ctbarrett1@gmail.com",
+      "AllowedPattern": "[a-zA-Z0-9-_\\.+]+@[a-zA-Z0-9-\\.]+\\.[a-zA-Z]{2,3}",
+      "ConstraintDescription": "must be a valid email address"
+    },
+
+    "SiteTitle": {
+      "Description": "Blog Title",
+      "Type": "String",
+      "Default": "Just another Wordpress blog"
+    },
+
+    "VpcNetId": {
+      "Description": "The 2nd octet of the network address for the VPC being created",
+      "Type": "Number",
+      "Default": 0,
+      "MinValue": 0,
+      "MaxValue": 255
+    }
+  },
+
+  "Mappings": {
+    "RegionMap": {
+      "us-west-2": {
+        "S3Bucket": "cb99",
+        "S3Url": "https://s3-us-west-2.amazonaws.com/"
+      },
+
+      "us-east-1": {
+        "S3Bucket": "cb99-backup",
+        "S3Url": "https://s3.amazonaws.com/"
+      }
+    }
   },
 
   "Resources" : {
@@ -43,9 +78,10 @@
       "Type" : "AWS::CloudFormation::Stack",
       "Properties" : {
         "Parameters" : {
-          "VpcName": {"Ref": "SiteID"}
+          "VpcName": {"Ref": "SiteID"},
+          "VpcNetId": {"Ref": "VpcNetId"}
         },
-        "TemplateURL": "https://s3-us-west-2.amazonaws.com/cb99/cft/vpc.json",
+        "TemplateURL": {"Fn::Join": ["", [{"Fn::FindInMap": ["RegionMap", {"Ref": "AWS::Region"}, "S3Url"]}, {"Fn::FindInMap": ["RegionMap", {"Ref": "AWS::Region"}, "S3Bucket"]}, "/cft/vpc.json"]]},
         "TimeoutInMinutes": "5",
         "Tags": [{
           "Key": "Name",
@@ -58,7 +94,11 @@
       "Type": "AWS::CloudFormation::Stack",
       "Properties" : {
         "Parameters" : {
+          "SiteID": {"Ref": "SiteID"},
+          "SiteAdminUser": {"Ref": "SiteAdminUser"},
           "SiteAdminPassword": {"Ref": "SiteAdminPassword"},
+          "SiteAdminEmail": {"Ref": "SiteAdminEmail"},
+          "SiteTitle": {"Ref": "SiteTitle"},
           "VPC": {"Fn::GetAtt": ["VpcStack", "Outputs.VPC"]},
           "PrivateSubnets": {"Fn::Join": [",", [
             {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ1Private"]},
@@ -71,7 +111,7 @@
             {"Fn::GetAtt": ["VpcStack", "Outputs.SubnetAZ3Public"]}
           ]]}
         },
-        "TemplateURL": "https://s3-us-west-2.amazonaws.com/cb99/cft/wordpress.json",
+        "TemplateURL": {"Fn::Join": ["", [{"Fn::FindInMap": ["RegionMap", {"Ref": "AWS::Region"}, "S3Url"]}, {"Fn::FindInMap": ["RegionMap", {"Ref": "AWS::Region"}, "S3Bucket"]}, "/cft/wordpress.json"]]},
         "TimeoutInMinutes": "15",
         "Tags": [{
           "Key": "Name",

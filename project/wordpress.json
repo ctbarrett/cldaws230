@@ -36,6 +36,20 @@
       "ConstraintDescription": "must contain only characters in the class: [a-zA-Z0-9-_!@#$%^&*()\\.,]"
     },
 
+    "SiteAdminEmail": {
+      "Description": "Enter admin email",
+      "Type": "String",
+      "Default": "ctbarrett1@gmail.com",
+      "AllowedPattern": "[a-zA-Z0-9-_\\.+]+@[a-zA-Z0-9-\\.]+\\.[a-zA-Z]{2,3}",
+      "ConstraintDescription": "must be a valid email address"
+    },
+
+    "SiteTitle": {
+      "Description": "Blog Title",
+      "Type": "String",
+      "Default": "Just another Wordpress blog"
+    },
+
     "AdminIP": {
       "Description": "The IP address range that can be used to SSH to the EC2 instances",
       "Type": "String",
@@ -216,6 +230,62 @@
       }
     },
 
+    "WebServerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version":"2012-10-17",
+          "Statement":[{
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "ec2.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }]
+        },
+        "Path": {"Fn::Join": ["/", ["", "role", {"Ref": "SiteID"}, "WebServerRole", "/"]]}
+      }
+    },
+
+    "WebServerPolicy": {
+       "Type": "AWS::IAM::Policy",
+       "Properties": {
+          "PolicyName": {"Fn::Join": ["", [{"Ref": "SiteID"}, "WebServerPolicy"]]},
+          "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:ListBucket",
+                  "s3:GetBucketLocation"
+                ],
+                "Resource": [
+                  {"Fn::Join": ["", ["arn:aws:s3:::", {"Ref": "SiteID"}]]}
+                ]
+              }, {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:PutObject",
+                  "s3:GetObject",
+                  "s3:DeleteOjbect"
+                ],
+                "Resource": [{"Fn::Join": ["", ["arn:aws:s3:::", {"Ref": "SiteID"}, "/*"]]}]
+              }
+            ]
+          },
+          "Roles": [{"Ref": "WebServerRole"}]
+       }
+    },
+
+    "WebServerProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": {"Fn::Join": ["/", ["", "profile", {"Ref": "SiteID"}, "WebServerProfile", "/"]]},
+        "Roles": [{"Ref": "WebServerRole"}]
+      }
+    },
+
     "LaunchConfig": {
       "Type": "AWS::AutoScaling::LaunchConfiguration",
       "Metadata": {
@@ -245,25 +315,43 @@
               "/root/configure_wp.sh": {
                 "content": {"Fn::Join": ["", [
                   "#!/bin/bash\n",
+
                   "cp wp-config-sample.php wp-config.php\n",
+
                   "sed -i \"s/'database_name_here'/'", "wordpress", "'/g\" wp-config.php\n",
                   "sed -i \"s/'username_here'/'", {"Ref": "SiteAdminUser"}, "'/g\" wp-config.php\n",
                   "sed -i \"s/'password_here'/'", {"Ref": "SiteAdminPassword"}, "'/g\" wp-config.php\n",
-                  "sed -i \"s/'localhost'/'", {"Fn::GetAtt": ["DBInstance", "Endpoint.Address"]}, "'/g\" wp-config.php\n"
+                  "sed -i \"s/'localhost'/'", {"Fn::GetAtt": ["DBInstance", "Endpoint.Address"]}, "'/g\" wp-config.php\n",
+
+                  "echo \"define('DISALLOW_FILE_MODS', true); \" >> wp-config.php \n",
+                  "echo \"define('WP_AUTO_UPDATE_CORE', false); \" >> wp-config.php \n",
+
+                  "curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \n",
+
+                  "php wp-cli.phar core install",
+                    "--url=\"", {"Fn::GetAtt": ["LoadBalancer", "DNSName"]}, "\"",
+                    "--title=\"", {"Ref": "SiteTitle"}, "\"",
+                    "--admin_user=\"", {"Ref": "SiteAdminUser"}, "\"",
+                    "--admin_password=\"", {"Ref": "SiteAdminPassword"}, "\"",
+                    "--admin_email=\"", {"Ref": "SiteAdminEmail"}, "\"",
+                    "\n",
+
+                  "php wp-cli.phar plugin install --activate amazon-web-services \n",
+                  "php wp-cli.phar plugin install --activate amazon-s3-and-cloudfront \n"
                 ]]},
                 "mode": "000500",
                 "owner": "root",
                 "group": "root"
               },
               "/etc/cfn/cfn-hup.conf": {
-                "content": { "Fn::Join": [ "", [
+                "content": {"Fn::Join": ["", [
                   "[main]\n",
-                  "stack=", { "Ref": "AWS::StackId" }, "\n",
-                  "region=", { "Ref": "AWS::Region" }, "\n"
+                  "stack=", {"Ref": "AWS::StackId" }, "\n",
+                  "region=", {"Ref": "AWS::Region" }, "\n"
                 ]]},
-                "mode"  : "000400",
-                "owner" : "root",
-                "group" : "root"
+                "mode" : "000400",
+                "owner": "root",
+                "group": "root"
               },
               "/etc/cfn/hooks.d/cfn-auto-reloader.conf": {
                 "content": {"Fn::Join": ["", [
@@ -271,14 +359,14 @@
                   "triggers=post.update\n",
                   "path=Resources.LaunchConfig.Metadata.AWS::CloudFormation::Init\n",
                   "action=/opt/aws/bin/cfn-init -v ",
-                  " --stack ", { "Ref" : "AWS::StackName" },
-                  " --region ", { "Ref" : "AWS::Region" },
+                  " --stack ", {"Ref": "AWS::StackName" },
+                  " --region ", {"Ref": "AWS::Region" },
                   " --resource LaunchConfig ",
                   "\n"
                 ]]},
-                "mode"  : "000400",
-                "owner" : "root",
-                "group" : "root"
+                "mode" : "000400",
+                "owner": "root",
+                "group": "root"
               }
             },
             "commands": {
