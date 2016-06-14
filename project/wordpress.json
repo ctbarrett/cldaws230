@@ -323,12 +323,12 @@
                   "sed -i \"s/'password_here'/'", {"Ref": "SiteAdminPassword"}, "'/g\" wp-config.php\n",
                   "sed -i \"s/'localhost'/'", {"Fn::GetAtt": ["DBInstance", "Endpoint.Address"]}, "'/g\" wp-config.php\n",
 
-                  "echo \"define('DISALLOW_FILE_MODS', true); \" >> wp-config.php \n",
-                  "echo \"define('WP_AUTO_UPDATE_CORE', false); \" >> wp-config.php \n",
+                  "#echo \"define('DISALLOW_FILE_MODS', true); \" >> wp-config.php \n",
+                  "#echo \"define('WP_AUTO_UPDATE_CORE', false); \" >> wp-config.php \n",
 
-                  "curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \n",
+                  "#curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \n",
 
-                  "php wp-cli.phar core install",
+                  "#php wp-cli.phar core install",
                     "--url=\"", {"Fn::GetAtt": ["LoadBalancer", "DNSName"]}, "\"",
                     "--title=\"", {"Ref": "SiteTitle"}, "\"",
                     "--admin_user=\"", {"Ref": "SiteAdminUser"}, "\"",
@@ -336,8 +336,8 @@
                     "--admin_email=\"", {"Ref": "SiteAdminEmail"}, "\"",
                     "\n",
 
-                  "php wp-cli.phar plugin install --activate amazon-web-services \n",
-                  "php wp-cli.phar plugin install --activate amazon-s3-and-cloudfront \n"
+                  "#php wp-cli.phar plugin install --activate amazon-web-services \n",
+                  "#php wp-cli.phar plugin install --activate amazon-s3-and-cloudfront \n"
                 ]]},
                 "mode": "000500",
                 "owner": "root",
